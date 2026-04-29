@@ -6,7 +6,7 @@ services:
     image: ossrf-dev
     environment:
       - PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native
-      - DISPLAY:$DISPLAY
+      - DISPLAY=$DISPLAY
       - TZ=Europe/Lisbon
     devices:
       - "/dev/snd:/dev/snd"

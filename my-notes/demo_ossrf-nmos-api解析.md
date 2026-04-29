@@ -17,7 +17,7 @@
 - アドレスの統一 ホストの実アドレス？
 
 - docker networkはどうなってる？
-    - host network
+    - ossrf-devはhost network
     - なので、コンテナはホストが持っているアドレスを使わなければならない
         - 127.0.0.1
         - 10.190.9.167 全てこれ？
@@ -25,3 +25,4 @@
     - 10.190.9.7に統一してmock動作はOK
 - 実動は、ReceiverはGSteamerでautovideosinkになっている模様
 - ホストに現れないのはX11の問題か？
+

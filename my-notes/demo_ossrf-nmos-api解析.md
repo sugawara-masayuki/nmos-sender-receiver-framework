@@ -11,9 +11,16 @@
 
 ## 関係する（可能性がある）設定ファイル：コンテナの方
 - /cpp/demos/ossrf-nmos-api/config/nmos_config.json
-- /cpp/demos/config/nmos_plugin_node_config_receiver.json
-- /cpp/demos/config/nmos_plugin_node_config_sender.jso
-- /cpp/demos/nmos-cpp-node/config.jsonの設定は？
+- /cpp/demos/config/nmos_plugin_node_config_receiver.json　-> 関係ない
+- /cpp/demos/config/nmos_plugin_node_config_sender.json　-> 関係ない
+- /cpp/demos/nmos-cpp-node/config.jsonの設定は？　-> 関係ない
+```
+demosの下に独立したデモが並んでいる
+cpp/demos/
+├── nmos-cpp-node/    ← nmos-cppを直接使うNMOSノードのデモ（GStreamerなし）
+├── ossrf-nmos-api/   ← OSSRFラッパー＋GStreamerのデモ（こちらがメイン）
+└── gst-sender/       ← GStreamerだけのセンダーデモ
+```
 
 - アドレスの統一 ホストの実アドレス？
 
@@ -384,3 +391,39 @@ gst-launch-1.0 \
 - セカンダリネットワーク（冗長系）は未実装（プライマリのみ使用）
 ````
 
+```
+そうなんだ。じゃあ、ossrf-nmos-apiデモでは、nmosの接続制御があったときに、どう振る舞うかは、そのプログラムコードの中に書いてあるんだ
+
+そうです、まさにその通りです。
+
+`ossrf-nmos-api` の main.cpp の中にコールバックとして直接書いてあります。 
+
+Read [](file:///home/sugawara/workspace/projects/ossrf/cpp/demos/ossrf-nmos-api/main.cpp#50-50), lines 50 to 140
+
+はい、コールバックラムダ関数として main.cpp にそのまま書いてあります。
+
+## NMOSの接続制御時の振る舞い
+
+### レシーバー側（接続されたとき）
+```
+NMOSコントローラが「接続」操作
+    ↓ SDPが届く
+receiver_activation_callback() が呼ばれる
+    ├─ sdp.has_value() == true → create_gst_receiver_plugin() でGStreamerパイプライン起動
+    └─ sdp.has_value() == false（切断）→ 何もしない（ログだけ）
+```
+
+**注意点**: 切断時（`sdp`がない場合）に `gst_receiver_uptr` をリセットする処理が**書かれていない**ため、切断しても映像表示が止まりません。
+
+### センダー側
+```cpp
+void sender_activation_callback(bool master_enabled, const nlohmann::json& transport_params)
+{
+    fmt::print("nmos_sender_callback: {} {}\n", master_enabled, transport_params.dump());
+}
+```
+
+センダーのコールバックは**ログを出力するだけ**で、GStreamerパイプラインに何も作用しません。センダーのパイプラインはプログラム起動時に作られてずっと送信し続けます。
+
+つまりこのデモは、NMOSの接続制御に対して**最低限の反応しかしていない**実装です。
+```

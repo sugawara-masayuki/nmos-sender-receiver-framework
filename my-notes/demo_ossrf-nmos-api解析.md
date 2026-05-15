@@ -23,7 +23,7 @@
         - 127.0.0.1
         - 10.190.9.167 全てこれ？
         - 172.~
-    - 10.190.9.7に統一してmock動作はOK
+    - 10.190.9.167に統一してmock動作はOK
 - 実動は、ReceiverはGSteamerでautovideosinkになっている模様
 - ホストに現れないのはX11の問題か？
 - xhost +local:docker
@@ -268,5 +268,119 @@ gst-launch-1.0 udpsrc address=239.10.10.10 port=5004 ... \
 ```
 
 C APIで書くことで、パラメータを実行時に動的に設定したり、コールバックでパイプラインを制御したりできる利点があります。
+````
+
+- センダーパイプライン解析
+````
+映像センダー（ST 2110-20）のGStreamerパイプラインを解析します。
+
+---
+
+## 映像センダー GStreamer パイプライン解析
+
+### パイプライン構成図
+
+```
+videotestsrc → capsfilter → queue → rtpvrawpay → udpsink
+```
+
+---
+
+### 各エレメント詳細
+
+#### 1. `videotestsrc` — テスト映像ソース
+- **役割**: テストパターンの映像フレームを生成（実カメラの代わり）
+- **設定パラメータ**:
+  - `pattern` — テストパターンのenum値（`videotestsrc` の `pattern` プロパティ）
+    - センダー1: `pattern=25`（`main.cpp` 118行目）
+    - センダー2: `pattern=15`（`main.cpp` 124行目）
+  - フレームレートは capsfilter 未設定のため `videotestsrc` のデフォルト（30fps）に従う
+
+> **注意**: `main.cpp` の引数 `25` / `15` は **fps ではなく `videotestsrc` の pattern enum値**。  
+> 実際のフレームレートは `nmos_config.json` の `frame_rate` が `video_info_t` に読み込まれるが、  
+> 現パイプラインでは capsfilter に framerate が設定されていないため、ネゴシエーションに委ねられる。
+
+#### 2. `capsfilter` — メディア形式制約
+- **役割**: `videotestsrc` の出力フォーマットを強制指定する
+- **設定 Caps**:
+  ```
+  video/x-raw,
+    format=UYVP,
+    width=<config から>,
+    height=<config から>
+  ```
+  - `UYVP` = 10bit packed YCbCr 4:2:2（ST 2110-20 の標準フォーマット）
+  - width / height は `nmos_config.json` の sender の `width` / `height` から取得
+
+#### 3. `queue` — バッファキュー
+- **役割**: capsfilter と rtpvrawpay の間のスレッド分離
+- `max-size-time` = 200,000 ns（200 µs）
+- `max-size-buffers` = 0（無制限）
+- `max-size-bytes` = 0（無制限）
+
+#### 4. `rtpvrawpay` — RTPペイロード化
+- **役割**: RFC 4175 に従い、生ビデオフレームを RTP パケットにカプセル化（ペイロード化）
+
+#### 5. `udpsink` — UDP送信
+- **役割**: RTP パケットをマルチキャスト UDP で送出
+- **設定パラメータ** (`nmos_config.json` から取得):
+  - `host` — 送信先IPアドレス（例: `239.10.10.10`）
+  - `port` — 送信先ポート（例: `5004`）
+  - `auto-multicast` = `TRUE`
+  - `multicast-iface` — 送出インターフェース名（例: `eno1`）
+
+---
+
+### データフロー
+
+```
+nmos_config.json（senders配列）
+    │ メディア情報（width, height, format, network など）
+    ▼
+create_gst_sender_plugin(config_json, pattern)
+    │ translate_json() → sender_settings + video_info_t
+    ▼
+create_gst_st2110_20_plugin(settings, format, pattern)
+    ▼
+create_gstreamer_pipeline(pattern)
+    │ テスト映像生成 → フォーマット変換 → RTPペイロード化 → UDP送出
+    ▼
+pipeline_.run_loop()  ← 非同期ループで継続送信
+```
+
+---
+
+### `gst-launch-1.0` 等価コマンド
+
+```bash
+gst-launch-1.0 \
+  videotestsrc pattern=25 \
+  ! capsfilter caps="video/x-raw,format=UYVP,width=640,height=480" \
+  ! queue max-size-time=200000 max-size-buffers=0 max-size-bytes=0 \
+  ! rtpvrawpay \
+  ! udpsink host=239.10.10.10 port=5004 auto-multicast=true multicast-iface=eno1
+```
+
+---
+
+### 規格対応
+
+| 項目 | 内容 |
+|------|------|
+| 映像規格 | **SMPTE ST 2110-20**（非圧縮映像 over IP） |
+| RTPペイロード | **RFC 4175**（Raw Video） |
+| ビット深度 | **10bit packed**（`UYVP` フォーマット） |
+| 色空間 | **YCbCr 4:2:2** |
+| 映像ソース | `videotestsrc`（テストパターン） |
+
+---
+
+### 注意点
+
+- `videotestsrc` はテスト用ソースのため、実運用では実カメラ入力（`v4l2src` 等）に差し替える必要がある
+- `capsfilter` に framerate が設定されていないため、実際の送出レートは GStreamer のネゴシエーション依存
+- `video_info_t` に `exact_framerate` / `chroma_sub_sampling` / `structure`（interlace mode）が含まれるが、  
+  現パイプラインでは capsfilter に反映されていない（将来の拡張余地）
+- セカンダリネットワーク（冗長系）は未実装（プライマリのみ使用）
 ````
 

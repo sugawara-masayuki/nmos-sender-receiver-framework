@@ -83,7 +83,7 @@
     // "domain": "local.",
 
     // host_address/host_addresses [registry, node]: IP addresses used to construct response headers (e.g. 'Link' or 'Location'), and host and URL fields in the data model
-    "host_address": "192.168.1.15",
+    "host_address": "10.190.9.167",
     //"host_addresses": array-of-ip-address-strings,
 
     // is04_versions [registry, node]: used to specify the enabled API versions (advertised via 'api_ver') for a version-locked configuration
@@ -125,7 +125,7 @@
     //"service_name_prefix": "nmos-cpp"
 
     // registry_address [node]: IP address or host name used to construct request URLs for registry APIs (if not discovered via DNS-SD)
-    "registry_address": "192.168.1.15",
+    "registry_address": "10.190.9.167",
 
     // registry_version [node]: used to construct request URLs for registry APIs (if not discovered via DNS-SD)
     // "registry_version": "v1.2",
@@ -176,7 +176,7 @@
     //"events_expiry_interval": 12,
 
     // system_address [node]: IP address or host name used to construct request URLs for the System API (if not discovered via DNS-SD)
-    "system_address": "192.168.1.15"
+    "system_address": "10.190.9.167"
 
     // system_version [node]: used to construct request URLs for the System API (if not discovered via DNS-SD)
     // "system_version": "v1.0"
